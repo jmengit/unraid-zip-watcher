@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Container version="2">
+  <Name>unraid-zip-watcher</Name>
+  <Repository>ghcr.io/jmengit/unraid-zip-watcher:latest</Repository>
+  <Registry>https://ghcr.io/</Registry>
+  <Network>bridge</Network>
+  <MyIP></MyIP>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/jmengit/unraid-zip-watcher/issues</Support>
+  <Project>https://github.com/jmengit/unraid-zip-watcher</Project>
+  <Overview>Very small background service that watches a folder for stable ZIP files and extracts each new or changed archive into a same-named subfolder. ZIP Slip paths and symbolic links are rejected. Processing state is stored in the state path so restarts do not repeat completed archives.</Overview>
+  <Category>Tools:</Category>
+  <WebUI></WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/jmengit/unraid-zip-watcher/main/unraid-template.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/jmengit/unraid-zip-watcher/main/assets/icon.svg</Icon>
+  <Config Name="Watch directory" Target="/watch" Default="/mnt/user/Downloads/zip-inbox" Mode="rw" Description="Host folder to scan (non-recursively) for .zip files." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/Downloads/zip-inbox</Config>
+  <Config Name="Output directory" Target="/output" Default="/mnt/user/Downloads/unpacked" Mode="rw" Description="Host folder where each archive is extracted into a same-named subfolder." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/Downloads/unpacked</Config>
+  <Config Name="State directory" Target="/state" Default="/mnt/user/appdata/unraid-zip-watcher" Mode="rw" Description="Persistent state directory. Keep this mapped to avoid reprocessing archives after container recreation." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/unraid-zip-watcher</Config>
+  <Config Name="Poll interval" Target="POLL_INTERVAL" Default="5s" Mode="" Description="How often to scan the watch directory. Go duration such as 5s or 1m." Type="Variable" Display="always" Required="true" Mask="false">5s</Config>
+  <Config Name="Stable scans" Target="STABLE_SCANS" Default="2" Mode="" Description="Number of unchanged scans required before extraction. Helps avoid reading a ZIP while it is still being copied." Type="Variable" Display="advanced" Required="true" Mask="false">2</Config>
+  <Config Name="Delete ZIP after success" Target="DELETE_ZIP" Default="false" Mode="" Description="Delete the source ZIP only after successful extraction. Keep false if you want to retain source archives." Type="Variable" Display="advanced" Required="true" Mask="false">false</Config>
+  <Config Name="Maximum uncompressed bytes" Target="MAX_UNCOMPRESSED_BYTES" Default="0" Mode="" Description="Optional decompression limit in bytes. 0 means unlimited; set a positive value to limit archive expansion." Type="Variable" Display="advanced" Required="true" Mask="false">0</Config>
+  <Date>2026-07-27</Date>
+</Container>
