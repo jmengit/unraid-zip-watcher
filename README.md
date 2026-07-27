@@ -8,7 +8,7 @@ A tiny, low-resource container that watches one folder for ZIP files and extract
 - Multi-architecture image: `linux/amd64` and `linux/arm64`.
 - Polls a single directory non-recursively; no database and no web server.
 - Waits for a ZIP to remain unchanged for two scans before reading it.
-- Extracts `example.zip` into `OUTPUT_DIR/example/`.
+- Extracts `example.zip` into a dedicated `OUTPUT_DIR/example/` directory (default `/output/example/`).
 - Persists a size/mtime fingerprint in `/state/processed.json` so completed archives are not repeated after restart.
 - Rejects absolute paths, path traversal, and symbolic links in ZIP entries.
 - Extracts to a temporary directory and replaces the archive's output directory only after a successful extraction.
@@ -27,12 +27,14 @@ The image is published by GitHub Actions from this repository. The container doe
 | Variable | Default | Description |
 | --- | --- | --- |
 | `WATCH_DIR` | `/watch` | Directory scanned for `.zip` files; scanning is non-recursive. |
-| `OUTPUT_DIR` | `WATCH_DIR` | Directory containing one output subdirectory per archive. |
+| `OUTPUT_DIR` | `/output` | Directory containing one output subdirectory per archive. |
 | `STATE_DIR` | `/state` | Directory for `processed.json`. Map this to persistent appdata. |
 | `POLL_INTERVAL` | `5s` | Go duration between scans, for example `5s` or `1m`. |
 | `STABLE_SCANS` | `2` | Unchanged scans required before extraction. |
 | `DELETE_ZIP` | `false` | Delete the source ZIP after successful extraction. |
-| `MAX_UNCOMPRESSED_BYTES` | `0` | Optional expansion limit in bytes; `0` means unlimited. |
+| `MAX_UNCOMPRESSED_BYTES` | `10737418240` | Maximum total uncompressed bytes per archive; 10 GiB by default, `0` means unlimited. |
+| `MAX_ENTRY_BYTES` | `2147483648` | Maximum uncompressed bytes for one entry; 2 GiB by default, `0` means unlimited. |
+| `MAX_ENTRIES` | `10000` | Maximum number of entries in one archive. |
 
 A changed ZIP with the same filename is processed again when its size or modification time changes. Existing output for that archive is replaced only after the new archive has been completely extracted.
 
@@ -51,7 +53,7 @@ docker run -d \\
   ghcr.io/jmengit/unraid-zip-watcher:latest
 ```
 
-The image runs as UID 99/GID 100. Ensure the mapped host paths are writable by that identity, or override the container user in your Docker runtime if your permissions model differs.
+The image runs as UID 99/GID 100. Ensure the mapped host paths are writable by that identity, or override the container user in your Docker runtime if your permissions model differs. The root filesystem contains no writable application state; `/watch`, `/output`, and `/state` are the intended writable mounts.
 
 ## Unraid template
 

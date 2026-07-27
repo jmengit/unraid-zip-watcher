@@ -19,10 +19,40 @@ func TestSafeZipPath(t *testing.T) {
 			t.Fatalf("safeZipPath(%q) = %q, %v; want %q", input, got, err, want)
 		}
 	}
-	for _, input := range []string{"", "/etc/passwd", "../outside", "a/../../outside", `..\\outside`} {
+	for _, input := range []string{"", "/etc/passwd", "//server/share/file", "C:/Windows/system.ini", "../outside", "a/../../outside", `..\\outside`} {
 		if _, err := safeZipPath(input); err == nil {
 			t.Fatalf("safeZipPath(%q) accepted an unsafe path", input)
 		}
+	}
+}
+
+func TestExtractArchiveRejectsLimits(t *testing.T) {
+	tmp := t.TempDir()
+	zipPath := filepath.Join(tmp, "large.zip")
+	file, err := os.Create(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zw := zip.NewWriter(file)
+	entry, err := zw.Create("large.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := entry.Write([]byte("1234567890")); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := extractArchive(zipPath, tmp, 5, 5, 100); err == nil {
+		t.Fatal("extractArchive accepted an archive over the byte limit")
+	}
+
+	if err := extractArchive(zipPath, tmp, 0, 0, 0); err == nil {
+		t.Fatal("extractArchive accepted an archive when max entries is zero")
 	}
 }
 
@@ -48,7 +78,7 @@ func TestExtractArchive(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := extractArchive(zipPath, tmp, 0); err != nil {
+	if err := extractArchive(zipPath, tmp, 0, 0, 10000); err != nil {
 		t.Fatal(err)
 	}
 	got, err := os.ReadFile(filepath.Join(tmp, "sample", "nested", "hello.txt"))

@@ -20,6 +20,8 @@
   <Config Name="Poll interval" Target="POLL_INTERVAL" Default="5s" Mode="" Description="How often to scan the watch directory. Go duration such as 5s or 1m." Type="Variable" Display="always" Required="true" Mask="false">5s</Config>
   <Config Name="Stable scans" Target="STABLE_SCANS" Default="2" Mode="" Description="Number of unchanged scans required before extraction. Helps avoid reading a ZIP while it is still being copied." Type="Variable" Display="advanced" Required="true" Mask="false">2</Config>
   <Config Name="Delete ZIP after success" Target="DELETE_ZIP" Default="false" Mode="" Description="Delete the source ZIP only after successful extraction. Keep false if you want to retain source archives." Type="Variable" Display="advanced" Required="true" Mask="false">false</Config>
-  <Config Name="Maximum uncompressed bytes" Target="MAX_UNCOMPRESSED_BYTES" Default="0" Mode="" Description="Optional decompression limit in bytes. 0 means unlimited; set a positive value to limit archive expansion." Type="Variable" Display="advanced" Required="true" Mask="false">0</Config>
+  <Config Name="Maximum uncompressed bytes" Target="MAX_UNCOMPRESSED_BYTES" Default="10737418240" Mode="" Description="Optional decompression limit in bytes. Default is 10 GiB; set 0 for unlimited." Type="Variable" Display="advanced" Required="true" Mask="false">10737418240</Config>
+  <Config Name="Maximum entry bytes" Target="MAX_ENTRY_BYTES" Default="2147483648" Mode="" Description="Reject an individual ZIP entry larger than this many uncompressed bytes. 0 means unlimited." Type="Variable" Display="advanced" Required="true" Mask="false">2147483648</Config>
+  <Config Name="Maximum entries" Target="MAX_ENTRIES" Default="10000" Mode="" Description="Reject ZIP archives containing more than this many entries." Type="Variable" Display="advanced" Required="true" Mask="false">10000</Config>
   <Date>2026-07-27</Date>
 </Container>

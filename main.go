@@ -35,6 +35,8 @@ type config struct {
 	StableScans          int
 	DeleteZip            bool
 	MaxUncompressedBytes int64
+	MaxEntryBytes        int64
+	MaxEntries           int
 }
 
 func main() {
@@ -65,7 +67,10 @@ func main() {
 	}
 	if cfg.MaxUncompressedBytes > 0 {
 		log.Printf("maximum uncompressed archive size: %d bytes", cfg.MaxUncompressedBytes)
+	} else {
+		log.Printf("maximum uncompressed archive size: unlimited")
 	}
+	log.Printf("maximum entries: %d; maximum bytes per entry: %d", cfg.MaxEntries, cfg.MaxEntryBytes)
 
 	candidates := make(map[string]fingerprint)
 	stableCounts := make(map[string]int)
@@ -84,7 +89,7 @@ func main() {
 
 func loadConfig() (config, error) {
 	watchDir := envString("WATCH_DIR", "/watch")
-	outputDir := envString("OUTPUT_DIR", watchDir)
+	outputDir := envString("OUTPUT_DIR", "/output")
 	stateDir := envString("STATE_DIR", "/state")
 	pollInterval, err := time.ParseDuration(envString("POLL_INTERVAL", "5s"))
 	if err != nil || pollInterval <= 0 {
@@ -94,9 +99,17 @@ func loadConfig() (config, error) {
 	if err != nil || stableScans < 1 {
 		return config{}, fmt.Errorf("STABLE_SCANS must be a positive integer, got %q", os.Getenv("STABLE_SCANS"))
 	}
-	maxBytes, err := strconv.ParseInt(envString("MAX_UNCOMPRESSED_BYTES", "0"), 10, 64)
+	maxBytes, err := strconv.ParseInt(envString("MAX_UNCOMPRESSED_BYTES", "10737418240"), 10, 64)
 	if err != nil || maxBytes < 0 {
 		return config{}, fmt.Errorf("MAX_UNCOMPRESSED_BYTES must be zero or a positive integer, got %q", os.Getenv("MAX_UNCOMPRESSED_BYTES"))
+	}
+	maxEntryBytes, err := strconv.ParseInt(envString("MAX_ENTRY_BYTES", "2147483648"), 10, 64)
+	if err != nil || maxEntryBytes < 0 {
+		return config{}, fmt.Errorf("MAX_ENTRY_BYTES must be zero or a positive integer, got %q", os.Getenv("MAX_ENTRY_BYTES"))
+	}
+	maxEntries, err := strconv.Atoi(envString("MAX_ENTRIES", "10000"))
+	if err != nil || maxEntries < 1 {
+		return config{}, fmt.Errorf("MAX_ENTRIES must be a positive integer, got %q", os.Getenv("MAX_ENTRIES"))
 	}
 	return config{
 		WatchDir:             watchDir,
@@ -106,6 +119,8 @@ func loadConfig() (config, error) {
 		StableScans:          stableScans,
 		DeleteZip:            envBool("DELETE_ZIP", false),
 		MaxUncompressedBytes: maxBytes,
+		MaxEntryBytes:        maxEntryBytes,
+		MaxEntries:           maxEntries,
 	}, nil
 }
 
@@ -218,7 +233,7 @@ func scan(ctx context.Context, cfg config, st state, candidates map[string]finge
 		}
 
 		log.Printf("extracting %q", entry.Name())
-		if err := extractArchive(zipPath, cfg.OutputDir, cfg.MaxUncompressedBytes); err != nil {
+		if err := extractArchive(zipPath, cfg.OutputDir, cfg.MaxUncompressedBytes, cfg.MaxEntryBytes, cfg.MaxEntries); err != nil {
 			log.Printf("failed to extract %q: %v", entry.Name(), err)
 			continue
 		}
@@ -246,12 +261,15 @@ func scan(ctx context.Context, cfg config, st state, candidates map[string]finge
 	return nil
 }
 
-func extractArchive(zipPath, outputDir string, maxBytes int64) error {
+func extractArchive(zipPath, outputDir string, maxBytes, maxEntryBytes int64, maxEntries int) error {
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return fmt.Errorf("open archive: %w", err)
 	}
 	defer r.Close()
+	if len(r.File) > maxEntries {
+		return fmt.Errorf("archive contains %d entries; maximum is %d", len(r.File), maxEntries)
+	}
 
 	archiveName := strings.TrimSuffix(filepath.Base(zipPath), filepath.Ext(zipPath))
 	if archiveName == "" || archiveName == "." || archiveName == ".." {
@@ -274,6 +292,16 @@ func extractArchive(zipPath, outputDir string, maxBytes int64) error {
 
 	var total int64
 	for _, file := range r.File {
+		if file.UncompressedSize64 > uint64(1<<63-1) {
+			return fmt.Errorf("entry %q is too large", file.Name)
+		}
+		entrySize := int64(file.UncompressedSize64)
+		if maxEntryBytes > 0 && entrySize > maxEntryBytes {
+			return fmt.Errorf("entry %q exceeds maximum size of %d bytes", file.Name, maxEntryBytes)
+		}
+		if maxBytes > 0 && entrySize > maxBytes-total {
+			return fmt.Errorf("archive exceeds maximum uncompressed size of %d bytes", maxBytes)
+		}
 		cleanName, err := safeZipPath(file.Name)
 		if err != nil {
 			return fmt.Errorf("unsafe entry %q: %w", file.Name, err)
@@ -362,8 +390,11 @@ func copyWithLimit(dst io.Writer, src io.Reader, remaining int64) (int64, error)
 }
 
 func safeZipPath(name string) (string, error) {
+	if name == "" || strings.IndexByte(name, 0) >= 0 {
+		return "", fmt.Errorf("empty or NUL-containing path")
+	}
 	name = strings.ReplaceAll(name, "\\", "/")
-	if name == "" || strings.HasPrefix(name, "/") {
+	if strings.HasPrefix(name, "/") || strings.HasPrefix(name, "//") || (len(name) >= 2 && name[1] == ':') {
 		return "", fmt.Errorf("absolute or empty path")
 	}
 	clean := path.Clean(name)
